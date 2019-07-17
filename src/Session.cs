@@ -1,6 +1,9 @@
 ﻿namespace enigma
 {
     #region Usings
+    using Newtonsoft.Json;
+    using Newtonsoft.Json.Linq;
+    using NLog;
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
@@ -9,9 +12,6 @@
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
-    using NLog;
     #endregion
 
     #region Session
@@ -42,6 +42,8 @@
             public CancellationToken ct;
             public TaskCompletionSource<JToken> tcs;
         }
+
+        public string LastOpenError { get; set; }
         #endregion
 
         #region Constructor
@@ -141,7 +143,7 @@
         {
             if (socket != null)
                 await CloseAsync(ctn);
-
+            LastOpenError = null;
             CancellationToken ct = ctn ?? CancellationToken.None;
 
             socket = await config.CreateSocketCall(ct).ConfigureAwait(false);
@@ -156,6 +158,22 @@
                     connected = false;
                 if (e.Method == "OnConnected")
                     connected = true;
+                if (!connected.HasValue)
+                {
+                    if (e.Method == "OnLicenseAccessDenied")
+                    {
+                        try
+                        {
+                            LastOpenError = (string)e.Parameters["message"];
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.Error(ex);
+                            LastOpenError = "OnLicenseAccessDenied";
+                        }
+                        connected = false;
+                    }
+                }
             }
 
             RPCMethodCalled += RPCMethodCall;
@@ -384,8 +402,8 @@
                         {
                             var responseMessage = JsonConvert.DeserializeObject<JsonRpcGeneratedAPIResponseMessage>(message);
 
-                            if (responseMessage != null && 
-                                    ( responseMessage.Result != null 
+                            if (responseMessage != null &&
+                                    (responseMessage.Result != null
                                    || responseMessage.Error != null
                                    || responseMessage.Change?.Count > 0
                                    || responseMessage.Closed?.Count > 0
