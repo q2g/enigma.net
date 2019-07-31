@@ -154,22 +154,41 @@
 
             void RPCMethodCall(object sender, JsonRpcRequestMessage e)
             {
+                logger.Trace($"RPCMethodCall - {e.Method}:{e.Parameters}");
                 if (e.Method == "OnAuthenticationInformation" && (bool?)e.Parameters["mustAuthenticate"] == true)
                     connected = false;
                 if (e.Method == "OnConnected")
                     connected = true;
                 if (!connected.HasValue)
                 {
-                    if (e.Method == "OnLicenseAccessDenied")
+                    string message = "";
+                    try
+                    {
+                        message = (string)e.Parameters["message"];
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error(ex);
+                    }
+                    string severity = "";
+                    try
+                    {
+                        severity = (string)e.Parameters["severity"];
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error(ex);
+                    }
+                    if (!string.IsNullOrEmpty(severity) && severity == "fatal")
                     {
                         try
                         {
-                            LastOpenError = (string)e.Parameters["message"];
+                            LastOpenError = e.Method + "\n" + message;
                         }
                         catch (Exception ex)
                         {
                             logger.Error(ex);
-                            LastOpenError = "OnLicenseAccessDenied";
+                            LastOpenError = "Communication Error";
                         }
                         connected = false;
                     }
