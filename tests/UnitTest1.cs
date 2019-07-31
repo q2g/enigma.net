@@ -14,6 +14,7 @@ namespace tests
     public class UnitTest1
     {
         IGlobal global;
+        dynamic dynamicGlobal;
         IDoc doc;
 
         public UnitTest1()
@@ -21,16 +22,13 @@ namespace tests
             var session = Enigma.Create(new EnigmaConfigurations()
             {
                 Url = $"ws://127.0.0.1:4848/app/engineData/identity/{Guid.NewGuid()}",
+                CreateSocket
             });
 
             // connect to the engine
-            var globalTask = session.OpenAsync().Result;
-            global = Impromptu.ActLike<IGlobal>(globalTask);
+            dynamicGlobal = session.OpenAsync().Result;
+            global = Impromptu.ActLike<IGlobal>(dynamicGlobal);
 
-            var appName = SenseUtilities.GetFullAppName("Executive Dashboard");
-            //doc = global.OpenDocAsync(appName).Result;
-
-            // TODO fix CreateSessionAppAsync
             doc = global.CreateSessionAppAsync().Result;
         }
 
@@ -38,7 +36,16 @@ namespace tests
         public async Task Global_EngineVersion()
         {
             var engineVersion = await global.EngineVersionAsync();
-            Assert.Equal("12", engineVersion.qComponentVersion.Substring(0, 2));
+            string version = engineVersion.qComponentVersion;
+            Assert.Equal("12", version.Substring(0, 2));
+        }
+
+        [Fact]
+        public async Task DynamicGlobal_EngineVersion()
+        {
+            dynamic engineVersion = await (Task<JObject>)dynamicGlobal.EngineVersionAsync();
+            string version = engineVersion.qComponentVersion;
+            Assert.Equal("12", version.Substring(0, 2));
         }
 
         [Fact]
@@ -68,22 +75,27 @@ namespace tests
             await Task.WhenAll(taskList.ToArray());
         }
 
-        //[Fact]
-        //async Task Doc_Changed()
-        //{
-        //    bool changed = false;
-        //    void Doc_Changed1(object sender, EventArgs e)
-        //    {
-        //        changed = true;
-        //    }
+        [Fact]
+        async Task Doc_Changed()
+        {
+            bool changed = false;
+            void Doc_Changed1(object sender, EventArgs e)
+            {
+                Console.WriteLine("changed");
+                changed = true;
+            }
 
-        //    Assert.False(changed);
-        //    doc.Changed += Doc_Changed1;
-        //    await doc.SetScriptAsync(Guid.NewGuid().ToString());
-        //    await Task.Delay(5000);
-        //    Assert.True(changed);
-        //    doc.Changed -= Doc_Changed1;
-        //}
+            Assert.False(changed);
+            doc.Changed += Doc_Changed1;
+            
+            await doc.SetScriptAsync(Guid.NewGuid().ToString()).ConfigureAwait(false);
+            await doc.LockAllAsync("$");
+            var re = await doc.EvaluateAsync("=40+2");
+
+            await Task.Delay(5000).ConfigureAwait(false);
+           // Assert.True(changed);
+            //doc.Changed -= Doc_Changed1;
+        }
 
         //[Fact]
         //public async Task ReloadTest()

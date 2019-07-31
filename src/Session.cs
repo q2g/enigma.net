@@ -1,6 +1,9 @@
 ﻿namespace enigma
 {
     #region Usings
+    using Newtonsoft.Json;
+    using Newtonsoft.Json.Linq;
+    using NLog;
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
@@ -9,9 +12,6 @@
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
-    using NLog;
     #endregion
 
     #region Session
@@ -29,7 +29,7 @@
         private ConcurrentDictionary<int, TaskCompletionSource<JToken>> OpenRequests = new ConcurrentDictionary<int, TaskCompletionSource<JToken>>();
         private ConcurrentQueue<SendRequest> OpenSendRequest = new ConcurrentQueue<SendRequest>();
 
-        private ClientWebSocket socket = null;
+        private WebSocket socket = null;
 
         private EnigmaConfigurations config;
 
@@ -42,6 +42,8 @@
             public CancellationToken ct;
             public TaskCompletionSource<JToken> tcs;
         }
+
+        public string LastOpenError { get; set; }
         #endregion
 
         #region Constructor
@@ -141,10 +143,10 @@
         {
             if (socket != null)
                 await CloseAsync(ctn);
-
+            LastOpenError = null;
             CancellationToken ct = ctn ?? CancellationToken.None;
 
-            socket = await config.CreateSocketCall(ct);
+            socket = await config.CreateSocketCall(ct).ConfigureAwait(false);
 
             // Todo add here the global Cancelation Token that is
             // triggered from the CloseAsync
@@ -152,10 +154,45 @@
 
             void RPCMethodCall(object sender, JsonRpcRequestMessage e)
             {
+                logger.Trace($"RPCMethodCall - {e.Method}:{e.Parameters}");
                 if (e.Method == "OnAuthenticationInformation" && (bool?)e.Parameters["mustAuthenticate"] == true)
                     connected = false;
                 if (e.Method == "OnConnected")
                     connected = true;
+                if (!connected.HasValue)
+                {
+                    string message = "";
+                    try
+                    {
+                        message = (string)e.Parameters["message"];
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error(ex);
+                    }
+                    string severity = "";
+                    try
+                    {
+                        severity = (string)e.Parameters["severity"];
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error(ex);
+                    }
+                    if (!string.IsNullOrEmpty(severity) && severity == "fatal")
+                    {
+                        try
+                        {
+                            LastOpenError = e.Method + "\n" + message;
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.Error(ex);
+                            LastOpenError = "Communication Error";
+                        }
+                        connected = false;
+                    }
+                }
             }
 
             RPCMethodCalled += RPCMethodCall;
@@ -241,7 +278,7 @@
         #endregion
 
         #region SendAsync
-        internal async Task<JToken> SendAsync(JsonRpcRequestMessage request, CancellationToken ct)
+        internal Task<JToken> SendAsync(JsonRpcRequestMessage request, CancellationToken ct)
         {
             var tcs = new TaskCompletionSource<JToken>();
             try
@@ -273,7 +310,7 @@
                 tcs.SetException(ex);
             }
 
-            return await tcs.Task;
+            return tcs.Task;
         }
         #endregion
 
@@ -333,14 +370,17 @@
                 #region Helper to Notify API Objects
                 void notifyGeneratedAPI(WeakReference<GeneratedAPI> wrGeneratedAPI, bool close)
                 {
+                    Console.WriteLine("notifyGeneratedAPI");
                     GeneratedAPI generatedAPI = null;
                     wrGeneratedAPI?.TryGetTarget(out generatedAPI);
                     if (generatedAPI != null)
                     {
+                        Console.WriteLine("notifyGeneratedAPI - genAPI");
                         _ = Task.Run(() =>
                         {
                             try
                             {
+                                Console.WriteLine("notifyGeneratedAPI - RUN");
                                 if (close)
                                     generatedAPI?.OnClosed();
                                 else
@@ -350,7 +390,7 @@
                             {
                                 logger.Error(ex);
                             }
-                        });
+                        }).ConfigureAwait(false);
                     }
                 }
                 #endregion
@@ -363,7 +403,7 @@
                         WebSocketReceiveResult result;
                         do
                         {
-                            result = await socket.ReceiveAsync(writeSegment, cancellationToken);
+                            result = await socket.ReceiveAsync(writeSegment, cancellationToken).ConfigureAwait(false);
                             writeSegment = new ArraySegment<byte>(buffer, writeSegment.Offset + result.Count, writeSegment.Count - result.Count);
 
                             // check buffer overflow
@@ -381,18 +421,26 @@
                         {
                             var responseMessage = JsonConvert.DeserializeObject<JsonRpcGeneratedAPIResponseMessage>(message);
 
-                            if (responseMessage != null && (responseMessage.Result != null || responseMessage.Error != null))
+                            if (responseMessage != null &&
+                                    (responseMessage.Result != null
+                                   || responseMessage.Error != null
+                                   || responseMessage.Change?.Count > 0
+                                   || responseMessage.Closed?.Count > 0
+                                   ))
                             {
-                                OpenRequests.TryRemove(responseMessage.Id, out var tcs);
-                                if (responseMessage.Error != null)
+                                if (responseMessage.Id != null)
                                 {
-                                    tcs?.SetException(new Exception(responseMessage.Error?.ToString()));
+                                    OpenRequests.TryRemove(responseMessage.Id.Value, out var tcs);
+                                    if (responseMessage.Error != null)
+                                    {
+                                        tcs?.SetException(new Exception(responseMessage.Error?.ToString()));
+                                    }
+                                    else
+                                        tcs?.SetResult(responseMessage.Result);
                                 }
-                                else
-                                    tcs?.SetResult(responseMessage.Result);
 
                                 #region Notify Changed or Closed API Objects
-                                if (responseMessage?.Change != null)
+                                if (responseMessage.Change != null)
                                 {
                                     foreach (var item in responseMessage.Change)
                                     {
@@ -402,7 +450,7 @@
                                     }
                                 }
 
-                                if (responseMessage?.Closed != null)
+                                if (responseMessage.Closed != null)
                                 {
                                     foreach (var item in responseMessage.Closed)
                                     {

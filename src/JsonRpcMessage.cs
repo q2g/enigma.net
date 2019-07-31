@@ -82,7 +82,7 @@
         public JToken Error { get; set; }
 
         [JsonProperty("id")]
-        public int Id { get; private set; }
+        public int? Id { get; private set; }
         #endregion
     }
     #endregion
