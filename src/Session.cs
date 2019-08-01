@@ -156,9 +156,15 @@
             {
                 logger.Trace($"RPCMethodCall - {e.Method}:{e.Parameters}");
                 if (e.Method == "OnAuthenticationInformation" && (bool?)e.Parameters["mustAuthenticate"] == true)
+                {
                     connected = false;
+                    LastOpenError = "Connection established but authentication failed";
+                }
                 if (e.Method == "OnConnected")
+                {
+                    LastOpenError = "";
                     connected = true;
+                }
                 if (!connected.HasValue)
                 {
                     string message = "";
