@@ -1,16 +1,16 @@
 ﻿namespace enigma
 {
     #region Usings
+    using ImpromptuInterface;
+    using Newtonsoft.Json;
+    using Newtonsoft.Json.Linq;
+    using Newtonsoft.Json.Serialization;
     using System;
     using System.Collections.Generic;
     using System.Dynamic;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using ImpromptuInterface;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
-    using Newtonsoft.Json.Serialization;
     #endregion
 
     #region ObjectResult
@@ -264,6 +264,7 @@
 
             var argList = args.ToList();
             var ctsArg = argList.OfType<CancellationToken>().ToList();
+            bool hasCancellationtoken = ctsArg.Count != 0;
             CancellationToken cts = ctsArg.SingleOrDefault();
 
             JToken jToken = null;
@@ -326,7 +327,8 @@
                 request.Method = char.ToUpper(request.Method[0]) + request.Method.Substring(1);
             }
             request.Parameters = jToken ?? JToken.Parse("{}");
-            result = new GeneratedAPIResult(Session?.SendAsync(request, cts), Session);
+            result = new GeneratedAPIResult(Session?.SendAsync(request, cts, hasCancellationtoken, $"{request?.Method ?? "missing Method"}  - {request?.Parameters?.ToString() ?? "no parameters"}"), Session);
+
             return true;
         }
 #pragma warning restore  1591

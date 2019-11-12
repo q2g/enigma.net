@@ -15,6 +15,20 @@
     #endregion
 
     #region Session
+    public class Message
+    {
+        public string Request { get; set; }
+        /// <summary>
+        ///
+        /// </summary>
+        public string Error { get; set; }
+        public string SessionID { get; set; }
+        public int ID { get; set; }
+        public string Method { get; set; }
+        public DateTime StartTime { get; set; }
+        public double Duration { get; set; }
+        public bool Seen { get; set; }
+    }
     /// <summary>
     /// Class for Enigma Sessions
     /// </summary>
@@ -25,15 +39,26 @@
         #endregion
 
         #region Variables / Properties
+        public CircularBuffer<Message> Messages = new CircularBuffer<Message>(200);
         internal ConcurrentDictionary<int, WeakReference<GeneratedAPI>> GeneratedApiObjects = new ConcurrentDictionary<int, WeakReference<GeneratedAPI>>();
         private ConcurrentDictionary<int, TaskCompletionSource<JToken>> OpenRequests = new ConcurrentDictionary<int, TaskCompletionSource<JToken>>();
         private ConcurrentQueue<SendRequest> OpenSendRequest = new ConcurrentQueue<SendRequest>();
 
         private WebSocket socket = null;
 
+        public String ID = Guid.NewGuid().ToString();
+
         private EnigmaConfigurations config;
 
         private int requestID = 0;
+
+        public bool WaitingForSendAsync { get; set; }
+        public DateTime? SendAsyncStartTime { get; set; }
+        public TaskCompletionSource<JToken> SendAsyncTCS { get; set; }
+        public CancellationToken SendAsyncCancellationToken { get; set; }
+        public CancellationTokenSource SendAsyncCancellationTokenSource { get; set; }
+
+        public string CurrentSendAsyncRequest;
 
         internal class SendRequest
         {
@@ -41,8 +66,12 @@
             public int id;
             public CancellationToken ct;
             public TaskCompletionSource<JToken> tcs;
+            public bool HasCancelationtoken;
+            public string MessageText { get; set; }
         }
-
+        /// <summary>
+        ///
+        /// </summary>
         public string LastOpenError { get; set; }
         #endregion
 
@@ -82,7 +111,14 @@
                     {
                         if (OpenRequests.TryRemove(item, out var value))
                         {
-                            value?.SetCanceled();
+                            try
+                            {
+                                value?.SetCanceled();
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.Error(ex);
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -284,7 +320,7 @@
         #endregion
 
         #region SendAsync
-        internal Task<JToken> SendAsync(JsonRpcRequestMessage request, CancellationToken ct)
+        internal Task<JToken> SendAsync(JsonRpcRequestMessage request, CancellationToken ct, bool hasCancalationtoken = true, string messagetext = null)
         {
             var tcs = new TaskCompletionSource<JToken>();
             try
@@ -306,14 +342,42 @@
                     logger.Error(ex);
                 }
                 logger.Trace("Send Request " + json);
+                if (request.Method != "EngineVersion")
+                {
+                    string requestinfo = json;
+                    if (request.Method == "EvaluateEx")
+                        requestinfo = request.Method;
+                    try
+                    {
+                        Messages.Add(new Message()
+                        {
+                            ID = request.Id,
+                            SessionID = this.ID,
+                            Request = requestinfo,
+                            Method = request.Method,
+                            StartTime = DateTime.Now,
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error(ex);
+                    }
+                }
                 var bt = Encoding.UTF8.GetBytes(json);
                 ArraySegment<byte> nm = new ArraySegment<byte>(bt);
                 OpenRequests.TryAdd(request.Id, tcs);
-                OpenSendRequest.Enqueue(new SendRequest() { ct = ct, tcs = tcs, message = nm, id = request.Id });
+                OpenSendRequest.Enqueue(new SendRequest() { ct = ct, tcs = tcs, message = nm, id = request.Id, HasCancelationtoken = hasCancalationtoken, MessageText = messagetext });
             }
             catch (Exception ex)
             {
-                tcs.SetException(ex);
+                try
+                {
+                    tcs.SetException(ex);
+                }
+                catch (Exception iex)
+                {
+                    logger.Error(iex);
+                }
             }
 
             return tcs.Task;
@@ -333,21 +397,67 @@
                         {
                             if (OpenSendRequest.TryDequeue(out SendRequest sr))
                             {
-                                socket.SendAsync(sr.message, WebSocketMessageType.Text, true, sr.ct)
-                                      .ContinueWith(
-                                           result =>
-                                           {
-                                               if (result.IsFaulted || result.IsCanceled)
-                                                   OpenRequests.TryRemove(sr.id, out var _);
-                                               if (result.IsFaulted)
-                                                   sr.tcs.SetException(result.Exception);
-                                               if (result.IsCanceled)
-                                                   sr.tcs.SetCanceled();
-                                           })
+                                if (!sr.HasCancelationtoken)
+                                    SendAsyncCancellationTokenSource = new CancellationTokenSource();
+                                CancellationToken ctt = sr.ct;
+                                if (!sr.HasCancelationtoken)
+                                    ctt = SendAsyncCancellationTokenSource.Token;
+
+                                SendAsyncTCS = sr.tcs;
+                                CurrentSendAsyncRequest = sr.MessageText;
+
+                                try
+                                {
+                                    SendAsyncStartTime = DateTime.Now;
+                                    socket.SendAsync(sr.message, WebSocketMessageType.Text, true, sr.ct)
+                                          .ContinueWith(
+                                               result =>
+                                               {
+                                                   if (result.IsFaulted || result.IsCanceled)
+                                                       OpenRequests.TryRemove(sr.id, out var _);
+                                                   if (result.IsFaulted)
+                                                   {
+                                                       try
+                                                       {
+                                                           sr.tcs.SetException(result.Exception);
+                                                       }
+                                                       catch (Exception ex)
+                                                       {
+                                                           logger.Error(ex);
+                                                       }
+                                                   }
+                                                   if (result.IsCanceled)
+                                                   {
+                                                       try
+                                                       {
+                                                           sr.tcs.SetCanceled();
+                                                       }
+                                                       catch (Exception ex)
+                                                       {
+                                                           logger.Error(ex);
+                                                       }
+                                                   }
+
+                                               })
 #if NET452
-                                  .Wait(sr.ct)
+                                  .Wait(ctt)
 #endif
                                        ;
+                                    SendAsyncStartTime = null;
+
+                                }
+                                catch (Exception ex)
+                                {
+                                    try
+                                    {
+                                        sr.tcs.SetException(ex);
+                                    }
+                                    catch (Exception iex)
+                                    {
+                                        logger.Error(iex);
+                                    }
+                                    logger.Error(ex, "Error Sending " + CurrentSendAsyncRequest);
+                                }
                             }
                         }
 
@@ -360,6 +470,7 @@
                 }
                 catch (Exception ex)
                 {
+                    SendAsyncStartTime = null;
                     logger.Error(ex);
                 }
             });
@@ -422,11 +533,31 @@
                         } while (!result.EndOfMessage);
 
                         var message = Encoding.UTF8.GetString(buffer, 0, writeSegment.Offset);
-                        logger.Trace("Reponse" + message);
+                        logger.Trace("Response" + message);
                         try
                         {
-                            var responseMessage = JsonConvert.DeserializeObject<JsonRpcGeneratedAPIResponseMessage>(message);
 
+                            var responseMessage = JsonConvert.DeserializeObject<JsonRpcGeneratedAPIResponseMessage>(message);
+                            try
+                            {
+                                var list = Messages.GetBuffer();
+                                if (responseMessage != null)
+                                {
+                                    foreach (var item in list)
+                                    {
+                                        if (item != null && item.ID == responseMessage.Id)
+                                        {
+                                            var ts = DateTime.Now - item.StartTime;
+                                            item.Duration = ts.TotalMilliseconds;
+                                            item.Error = responseMessage.Error?.ToString() ?? "";
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.Error(ex);
+                            }
                             if (responseMessage != null &&
                                     (responseMessage.Result != null
                                    || responseMessage.Error != null

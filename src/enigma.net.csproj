@@ -2,7 +2,7 @@
 	<Choose>
 		<When Condition="'$(MSBuildRuntimeType)' == 'Core'">
 			<PropertyGroup>
-				<TargetFramework>netcoreapp2.1</TargetFramework>				
+				<TargetFramework>netcoreapp2.1</TargetFramework>
 			</PropertyGroup>
 		</When>
 		<Otherwise>
@@ -49,12 +49,12 @@
 		</Otherwise>
 	</Choose>
 
-	<Target Name="PublishToNugetWithAPIKey" AfterTargets="GenerateNuspec">
+	<!--<Target Name="PublishToNugetWithAPIKey" AfterTargets="GenerateNuspec">
 		<ReadLinesFromFile File="$(SolutionDir)\..\..\nugetapikey.txt">
 			<Output TaskParameter="Lines" PropertyName="NugetAPIKey" />
 		</ReadLinesFromFile>
 		<Exec WorkingDirectory="$(BaseDir)" Command="dotnet nuget push $(PackageOutputAbsolutePath)$(PackageId).$(PackageVersion).nupkg -k $(NugetAPIKey) -s https://api.nuget.org/v3/index.json" />
-	</Target>
+	</Target>-->
 
 	<ItemGroup>
 		<Reference Include="System.Web" />
@@ -67,9 +67,9 @@
 		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-beta2-18618-05" PrivateAssets="All" />
 	</ItemGroup>
 
-	<Target Name="FixOnGitVersionTaskError" BeforeTargets="GetAssemblyVersion">
+	<!--<Target Name="FixOnGitVersionTaskError" BeforeTargets="GetAssemblyVersion">
 		<CreateProperty Value="0.0.1-notgitversion" Condition="'$(GitVersion_NuGetVersion)' == ''">
 			<Output TaskParameter="Value" PropertyName="Version" />
 		</CreateProperty>
-	</Target>
+	</Target>-->
 </Project>
