@@ -1,75 +1,35 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-	<Choose>
-		<When Condition="'$(MSBuildRuntimeType)' == 'Core'">
-			<PropertyGroup>
-				<TargetFramework>netcoreapp2.1</TargetFramework>
-			</PropertyGroup>
-		</When>
-		<Otherwise>
-			<PropertyGroup>
-				<TargetFrameworks>net452;netcoreapp2.2;netcoreapp2.1;netcoreapp2.0</TargetFrameworks>
-			</PropertyGroup>
-		</Otherwise>
-	</Choose>
-
 	<PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
 		<PackageId>enigma.net</PackageId>
-		<Company>q2g</Company>
+		<Company>akquinet finance &amp; controlling GmbH</Company>
 		<Product>enigma.net</Product>
-		<Authors>Konrad Mattheis &amp; Martin Berthold</Authors>
+		<Authors>akquinet finance &amp; controlling GmbH</Authors>
 		<PackageProjectUrl>https://github.com/q2g/enigma.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/q2g/enigma.net</RepositoryUrl>
 		<AssemblyName>enigma.net</AssemblyName>
 		<RootNamespace>enigma</RootNamespace>
-
 		<Description>Automated Classes for the Qlik EngineAPI</Description>
-		<!--<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>-->
 		<PackageReleaseNotes></PackageReleaseNotes>
 		<PackageTags>qlik sense engine engineapi enigma</PackageTags>
-
 		<Version>$(GitVersion_NuGetVersion)</Version>
-
-		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>
 		<EmbedUntrackedSources>true</EmbedUntrackedSources>
 		<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
 	</PropertyGroup>
-
-	<Choose>
-		<When Condition="'$(Configuration)' == 'Release'">
-			<PropertyGroup>
-				<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-			</PropertyGroup>
-		</When>
-		<Otherwise>
-			<PropertyGroup>
-				<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-			</PropertyGroup>
-		</Otherwise>
-	</Choose>
-
-	<!--<Target Name="PublishToNugetWithAPIKey" AfterTargets="GenerateNuspec">
-		<ReadLinesFromFile File="$(SolutionDir)\..\..\nugetapikey.txt">
-			<Output TaskParameter="Lines" PropertyName="NugetAPIKey" />
-		</ReadLinesFromFile>
-		<Exec WorkingDirectory="$(BaseDir)" Command="dotnet nuget push $(PackageOutputAbsolutePath)$(PackageId).$(PackageVersion).nupkg -k $(NugetAPIKey) -s https://api.nuget.org/v3/index.json" />
-	</Target>-->
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+	  <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+	</PropertyGroup>
 
 	<ItemGroup>
-		<Reference Include="System.Web" />
-
 		<PackageReference Include="ImpromptuInterface" Version="7.0.1" />
-		<PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
-		<PackageReference Include="NLog" Version="4.5.11" />
-
-		<PackageReference Include="GitVersionTask" Version="4.0.0" PrivateAssets="All" Condition="'$(noGitVersionTask)' == ''" />
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-beta2-18618-05" PrivateAssets="All" />
+		<PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+		<PackageReference Include="NLog" Version="4.7.0" />
+		<PackageReference Include="GitVersionTask" Version="5.2.4" PrivateAssets="All" Condition="'$(noGitVersionTask)' == ''" />
 	</ItemGroup>
 
-	<!--<Target Name="FixOnGitVersionTaskError" BeforeTargets="GetAssemblyVersion">
-		<CreateProperty Value="0.0.1-notgitversion" Condition="'$(GitVersion_NuGetVersion)' == ''">
-			<Output TaskParameter="Value" PropertyName="Version" />
-		</CreateProperty>
-	</Target>-->
+  <Target Name="GitVersion" BeforeTargets="AfterBuild">
+    <Message Importance="High" Text="++++++ GitVersion: $(GitVersion_InformationalVersion) ++++++" />
+  </Target>
+  
 </Project>
