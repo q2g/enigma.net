@@ -5,6 +5,7 @@
 		<Company>akquinet finance &amp; controlling GmbH</Company>
 		<Product>enigma.net</Product>
 		<Authors>akquinet finance &amp; controlling GmbH</Authors>
+    <Copyright>Copyright (c) $([System.DateTime]::Today.ToString('yyyy'))</Copyright>
 		<PackageProjectUrl>https://github.com/q2g/enigma.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/q2g/enigma.net</RepositoryUrl>
 		<AssemblyName>enigma.net</AssemblyName>
