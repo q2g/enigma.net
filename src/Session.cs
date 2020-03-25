@@ -487,17 +487,16 @@
                 #region Helper to Notify API Objects
                 void notifyGeneratedAPI(WeakReference<GeneratedAPI> wrGeneratedAPI, bool close)
                 {
-                    Console.WriteLine("notifyGeneratedAPI");
                     GeneratedAPI generatedAPI = null;
                     wrGeneratedAPI?.TryGetTarget(out generatedAPI);
                     if (generatedAPI != null)
                     {
-                        Console.WriteLine("notifyGeneratedAPI - genAPI");
+                        logger.Trace("notifyGeneratedAPI - GENERATED API");
                         _ = Task.Run(() =>
                         {
                             try
                             {
-                                Console.WriteLine("notifyGeneratedAPI - RUN");
+                                logger.Trace("notifyGeneratedAPI - RUN API");
                                 if (close)
                                     generatedAPI?.OnClosed();
                                 else
