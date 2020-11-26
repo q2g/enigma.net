@@ -44,9 +44,11 @@
         private ConcurrentDictionary<int, TaskCompletionSource<JToken>> OpenRequests = new ConcurrentDictionary<int, TaskCompletionSource<JToken>>();
         private ConcurrentQueue<SendRequest> OpenSendRequest = new ConcurrentQueue<SendRequest>();
 
-        private WebSocket socket = null;
+        public WebSocket socket = null;
 
         public String ID = Guid.NewGuid().ToString();
+
+        public string AppID { get; set; }
 
         private EnigmaConfigurations config;
 
