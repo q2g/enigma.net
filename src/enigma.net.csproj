@@ -6,17 +6,12 @@
 		<Product>enigma.net</Product>
 		<Authors>akquinet finance &amp; controlling GmbH</Authors>
     <Copyright>Copyright (c) $([System.DateTime]::Today.ToString('yyyy'))</Copyright>
-		<PackageProjectUrl>https://github.com/q2g/enigma.net</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/q2g/enigma.net</RepositoryUrl>
 		<AssemblyName>enigma.net</AssemblyName>
 		<RootNamespace>enigma</RootNamespace>
 		<Description>Automated Classes for the Qlik EngineAPI</Description>
-		<PackageReleaseNotes></PackageReleaseNotes>
 		<PackageTags>qlik sense engine engineapi enigma</PackageTags>
-		<Version>$(GitVersion_NuGetVersion)</Version>
-		<PublishRepositoryUrl>true</PublishRepositoryUrl>
-		<EmbedUntrackedSources>true</EmbedUntrackedSources>
-		<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+    <AssemblyVersion>5.1.2.0</AssemblyVersion>
+    <FileVersion>5.1.2.0</FileVersion>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 	  <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
@@ -26,11 +21,13 @@
 		<PackageReference Include="ImpromptuInterface" Version="7.0.1" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
 		<PackageReference Include="NLog" Version="4.7.9" />
-		<PackageReference Include="GitVersionTask" Version="5.5.1" PrivateAssets="All" Condition="'$(noGitVersionTask)' == ''" />
 	</ItemGroup>
 
-  <Target Name="GitVersion" BeforeTargets="AfterBuild">
-    <Message Importance="High" Text="++++++ GitVersion: $(GitVersion_InformationalVersion) ++++++" />
+  <Target Name="ShowAssemblyVersion" BeforeTargets="AfterBuild">
+    <GetAssemblyIdentity AssemblyFiles="$(TargetPath)">
+      <Output TaskParameter="Assemblies" ItemName="MyAssemblyIdentities" />
+    </GetAssemblyIdentity>
+    <Message Importance="High" Text="++++++ AssemblyVersion: %(MyAssemblyIdentities.Version) ++++++" />
   </Target>
   
 </Project>
